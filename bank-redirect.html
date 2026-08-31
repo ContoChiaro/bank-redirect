@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Collegamento banca</title>
+<style>
+  body{
+    font-family: -apple-system, 'Inter', sans-serif;
+    background: #0B0D14;
+    color: #F1F2F6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+    padding: 24px;
+  }
+  .box{
+    max-width: 400px;
+    width: 100%;
+    text-align: center;
+    padding: 32px 24px;
+    background: #151822;
+    border: 1px solid #262A38;
+    border-radius: 18px;
+  }
+  h2{ margin: 0 0 10px; font-size: 20px; }
+  p{ color: #9AA0B4; font-size: 14px; line-height: 1.5; margin: 0 0 16px; }
+  code{
+    display: block;
+    background: #0B0D14;
+    padding: 12px;
+    border-radius: 10px;
+    margin: 0 0 16px;
+    word-break: break-all;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  button{
+    padding: 11px 22px;
+    border-radius: 10px;
+    border: none;
+    background: #818CF8;
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 14px;
+    display: none;
+  }
+  .spinner{
+    width: 28px; height: 28px;
+    border: 3px solid #262A38;
+    border-top-color: #818CF8;
+    border-radius: 50%;
+    margin: 0 auto 16px;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin{ to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="spinner" id="spinner"></div>
+  <h2 id="title">Un attimo…</h2>
+  <p id="message">Sto completando il collegamento.</p>
+  <code id="codeDisplay" style="display:none;"></code>
+  <button type="button" id="copyBtn" onclick="copyCode()">Copia il codice</button>
+</div>
+
+<script>
+  var params = new URLSearchParams(window.location.search);
+  var code = params.get('code');
+  var state = params.get('state');
+  var error = params.get('error');
+
+  function setDone(title, message){
+    document.getElementById('spinner').style.display = 'none';
+    document.getElementById('title').textContent = title;
+    document.getElementById('message').textContent = message;
+  }
+
+  function showManualCode(){
+    if (code){
+      setDone(
+        error ? 'Quasi fatto' : 'Login completato ✅',
+        'Copia questo codice e incollalo nella pagina di configurazione, dove l\'hai lasciata:'
+      );
+      var el = document.getElementById('codeDisplay');
+      el.textContent = code;
+      el.style.display = 'block';
+      document.getElementById('copyBtn').style.display = 'inline-block';
+    } else {
+      setDone('Qualcosa non è andato come previsto', 'Torna alla pagina di configurazione e riprova a collegare la banca.');
+    }
+  }
+
+  function copyCode(){
+    navigator.clipboard.writeText(code).then(function(){
+      document.getElementById('copyBtn').textContent = 'Copiato ✓';
+    }).catch(function(){
+      showManualCode();
+    });
+  }
+
+  // Se questa pagina è stata aperta dal wizard (window.open), proviamo a rimandargli
+  // il codice automaticamente — così il cliente non deve copiare/incollare nulla.
+  if (window.opener && !window.opener.closed){
+    try {
+      window.opener.postMessage({ type: 'enable-banking-callback', code: code, state: state, error: error }, '*');
+      setDone(
+        error ? 'Qualcosa non è andato come previsto' : 'Login completato ✅',
+        error ? 'Torna alla pagina di configurazione e riprova.' : 'Puoi tornare alla pagina di configurazione: si aggiornerà da sola tra un istante.'
+      );
+      setTimeout(function(){ window.close(); }, 2000);
+    } catch(e){
+      showManualCode();
+    }
+  } else {
+    showManualCode();
+  }
+</script>
+</body>
+</html>
