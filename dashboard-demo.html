@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- VERSIONE: 1.3.5 -->
+<!-- VERSIONE: 1.3.3 -->
 <html lang="it">
 <head>
 <meta charset="UTF-8">
@@ -914,54 +914,6 @@
     gap: 20px;
   }
 
-  .subscription-calendar-grid{
-    display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 4px;
-  }
-  .subscription-calendar-day-header{
-    text-align: center;
-    font-size: 10.5px;
-    font-weight: 600;
-    color: var(--ink-soft);
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    padding: 2px 0 6px;
-  }
-  .subscription-calendar-cell{
-    min-height: 60px;
-    min-width: 0;
-    border: 1px solid var(--rule);
-    border-radius: 8px;
-    padding: 4px;
-    overflow: hidden;
-  }
-  .subscription-calendar-cell.calendar-cell-empty{
-    border-color: transparent;
-    background: transparent;
-  }
-  .subscription-calendar-cell.calendar-cell-today{
-    border-color: var(--accent);
-    background: var(--accent-soft);
-  }
-  .subscription-calendar-day-num{
-    font-size: 10.5px;
-    color: var(--ink-soft);
-    margin-bottom: 3px;
-  }
-  .subscription-calendar-marker{
-    display: block;
-    font-size: 9.5px;
-    font-weight: 600;
-    color: #fff;
-    border-radius: 4px;
-    padding: 1.5px 4px;
-    margin-bottom: 2px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
   .investment-card{
     border: 1px solid var(--rule);
     border-radius: var(--radius);
@@ -1829,22 +1781,6 @@
     <p class="section-label" id="recurringSectionLabel">Abbonamenti ricorrenti individuati</p>
     <p style="font-size:13px;color:var(--ink-soft);margin:-4px 0 14px;">Addebiti allo stesso nome, con importo stabile, in almeno due mesi diversi — probabili abbonamenti o utenze fisse.</p>
     <div class="investments-grid" id="recurringList"></div>
-  </section>
-
-  <section class="analysis page-view" data-page="movimenti">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:2px;">
-      <p class="section-label" style="margin:0;">Calendario abbonamenti</p>
-      <div style="display:flex;align-items:center;gap:12px;">
-        <button type="button" id="calPrevMonth" style="background:none;border:1px solid var(--rule);border-radius:8px;width:28px;height:28px;cursor:pointer;color:var(--ink);font-size:14px;">‹</button>
-        <span id="calMonthLabel" style="font-size:13px;font-weight:600;min-width:110px;text-align:center;"></span>
-        <button type="button" id="calNextMonth" style="background:none;border:1px solid var(--rule);border-radius:8px;width:28px;height:28px;cursor:pointer;color:var(--ink);font-size:14px;">›</button>
-      </div>
-    </div>
-    <p style="font-size:13px;color:var(--ink-soft);margin:-2px 0 14px;">Proiezione basata sull'intervallo medio storico di ciascun addebito — indicativa, non garantita.</p>
-    <div class="analysis-card">
-      <div id="subscriptionCalendarHeader" class="subscription-calendar-grid" style="margin-bottom:6px;"></div>
-      <div id="subscriptionCalendarGrid" class="subscription-calendar-grid"></div>
-    </div>
   </section>
 
   <section class="transactions page-view" id="transactions-section" data-page="movimenti">
@@ -3074,7 +3010,7 @@
     }
 
     list.innerHTML = recurring.slice(0, 15).map(function(r){
-      var bankInfo = infoFonte(r.bank);
+      var bankInfo = BANKS[r.bank] || { color: inkSoft, short: r.bank };
       var nomePulito = r.descPulita || r.desc || 'Abbonamento';
       if (nomePulito.length > 32){ nomePulito = nomePulito.slice(0, 32) + '…'; }
 
@@ -3103,88 +3039,6 @@
         '<p class="investment-status num" style="margin-top:6px;opacity:0.75;">Disdicendo risparmieresti ' + fmtEURfull(costoAnnuale) + '/anno</p>' +
       '</article>';
     }).join('');
-  }
-
-  // ---------- Calendario abbonamenti ----------
-  var calendarioAnno = new Date().getFullYear();
-  var calendarioMese = new Date().getMonth(); // 0-indicizzato, gennaio = 0
-
-  // Proietta, camminando avanti/indietro dalla data dell'ultimo pagamento noto in base
-  // all'intervallo medio storico, quali giorni del mese richiesto avrebbero un'occorrenza —
-  // gestisce sia abbonamenti mensili sia con un ritmo diverso (settimanale, bimestrale...).
-  function calcolaOccorrenzeNelMese(sub, anno, mese){
-    var primoDelMese = new Date(anno, mese, 1);
-    var ultimoDelMese = new Date(anno, mese + 1, 0, 23, 59, 59);
-    var intervallo = sub.intervalloMedio > 0 ? sub.intervalloMedio : 30;
-    var occorrenze = [];
-
-    var cursore = new Date(sub.lastDate);
-    var iterazioniSicurezza = 0;
-    // Cammina indietro finché non arriviamo prima dell'inizio del mese richiesto
-    while (cursore > primoDelMese && iterazioniSicurezza < 500){
-      cursore = new Date(cursore.getTime() - intervallo * 86400000);
-      iterazioniSicurezza++;
-    }
-    // Poi cammina avanti, raccogliendo ogni occorrenza che cade nel mese richiesto
-    iterazioniSicurezza = 0;
-    while (cursore <= ultimoDelMese && iterazioniSicurezza < 500){
-      if (cursore >= primoDelMese){ occorrenze.push(new Date(cursore)); }
-      cursore = new Date(cursore.getTime() + intervallo * 86400000);
-      iterazioniSicurezza++;
-    }
-    return occorrenze;
-  }
-
-  function renderSubscriptionCalendar(movimenti){
-    var headerEl = document.getElementById('subscriptionCalendarHeader');
-    var gridEl = document.getElementById('subscriptionCalendarGrid');
-    var labelEl = document.getElementById('calMonthLabel');
-    if (!headerEl || !gridEl) return;
-
-    var giorniSettimana = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
-    headerEl.innerHTML = giorniSettimana.map(function(g){
-      return '<div class="subscription-calendar-day-header">' + g + '</div>';
-    }).join('');
-
-    var nomeMeseCal = new Date(calendarioAnno, calendarioMese, 1).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
-    if (labelEl){ labelEl.textContent = nomeMeseCal.charAt(0).toUpperCase() + nomeMeseCal.slice(1); }
-
-    var abbonamenti = trovaAbbonamentiRicorrenti(movimenti);
-    var occorrenzePerGiorno = {}; // "1", "2", ... -> [{nome, colore}, ...]
-    abbonamenti.forEach(function(sub){
-      var occorrenze = calcolaOccorrenzeNelMese(sub, calendarioAnno, calendarioMese);
-      var bankInfo = infoFonte(sub.bank);
-      var nomeBreve = (sub.descPulita || sub.desc || 'Abbonamento').slice(0, 14);
-      occorrenze.forEach(function(data){
-        var giorno = data.getDate();
-        if (!occorrenzePerGiorno[giorno]) occorrenzePerGiorno[giorno] = [];
-        occorrenzePerGiorno[giorno].push({ nome: nomeBreve, colore: bankInfo.color });
-      });
-    });
-
-    var primoDelMese = new Date(calendarioAnno, calendarioMese, 1);
-    var giornoSettimanaPrimo = (primoDelMese.getDay() + 6) % 7; // 0 = lunedì
-    var giorniNelMese = new Date(calendarioAnno, calendarioMese + 1, 0).getDate();
-    var oggiCal = new Date();
-    var eMeseCorrente = oggiCal.getFullYear() === calendarioAnno && oggiCal.getMonth() === calendarioMese;
-
-    var celle = [];
-    for (var i = 0; i < giornoSettimanaPrimo; i++){
-      celle.push('<div class="subscription-calendar-cell calendar-cell-empty"></div>');
-    }
-    for (var giorno = 1; giorno <= giorniNelMese; giorno++){
-      var eOggi = eMeseCorrente && oggiCal.getDate() === giorno;
-      var markerHtml = (occorrenzePerGiorno[giorno] || []).slice(0, 3).map(function(o){
-        return '<span class="subscription-calendar-marker" style="background:' + o.colore + ';" title="' + o.nome + '">' + o.nome + '</span>';
-      }).join('');
-      celle.push(
-        '<div class="subscription-calendar-cell' + (eOggi ? ' calendar-cell-today' : '') + '">' +
-          '<div class="subscription-calendar-day-num">' + giorno + '</div>' +
-          markerHtml +
-        '</div>'
-      );
-    }
-    gridEl.innerHTML = celle.join('');
   }
 
   function categoryTotalsForMonth(movimenti, ym){
@@ -3439,20 +3293,6 @@
 
   // Non c'è più un elenco fisso di banche per gli investimenti: qualunque nome sia stato
   // salvato almeno una volta (o venga aggiunto dal cliente) diventa una scheda a sé.
-
-  // Colore + nome breve per QUALUNQUE fonte (banca, exchange, investimento) — non solo le
-  // due banche storiche sopra. Per tutto il resto, un colore scelto in modo stabile dal
-  // nome stesso (la stessa fonte ha sempre lo stesso colore tra un caricamento e l'altro,
-  // ma diverso dalle altre) — prima di questa funzione, tutto ciò che non era Volksbank o
-  // Intesa finiva con lo stesso colore di ripiego, rendendo i grafici illeggibili.
-  var EXTRA_PALETTE = ['#60A5FA','#F472B6','#34D399','#FBBF24','#A78BFA','#38BDF8','#F87171','#A3E635','#FB923C','#818CF8','#2DD4BF','#F0ABFC'];
-  function infoFonte(nome){
-    if (BANKS[nome]) return BANKS[nome];
-    var testo = nome || '';
-    var hash = 0;
-    for (var i = 0; i < testo.length; i++){ hash = (hash * 31 + testo.charCodeAt(i)) % 1000000; }
-    return { color: EXTRA_PALETTE[Math.abs(hash) % EXTRA_PALETTE.length], short: testo };
-  }
 
   function fmtEUR(n){
     return n.toLocaleString('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
@@ -4135,7 +3975,7 @@
     // Grafico andamento mensile
     var allMonths = Array.from(new Set(saldi.map(function(s){ return monthLabel(s.data_riferimento); })));
     var datasets = bankNames.map(function(name){
-      var color = infoFonte(name).color;
+      var color = (BANKS[name] || { color: inkSoft }).color;
       var rows = saldi.filter(function(s){ return s.banca === name; });
       var byMonth = {};
       rows.forEach(function(r){ byMonth[monthLabel(r.data_riferimento)] = parseFloat(r.importo); });
@@ -4183,7 +4023,7 @@
 
     // Variazione mese su mese del saldo, per banca
     var monthlyChangeDatasets = bankNames.map(function(name){
-      var color = infoFonte(name).color;
+      var color = (BANKS[name] || { color: inkSoft }).color;
       var byMonth = {};
       saldi.filter(function(s){ return s.banca === name; }).forEach(function(r){
         byMonth[monthLabel(r.data_riferimento)] = parseFloat(r.importo);
@@ -4239,7 +4079,7 @@
     var liquidTotalCalc = 0;
 
     bankNames.forEach(function(name){
-      var color = infoFonte(name).color;
+      var color = (BANKS[name] || { color: inkSoft }).color;
       var shortName = (BANKS[name] || { short: name }).short || name;
       var rows = saldi.filter(function(s){ return s.banca === name; });
       var current = parseFloat(rows[rows.length - 1].importo);
@@ -4281,7 +4121,7 @@
       if (!name){ panel.style.display = 'none'; return; }
       panel.style.display = 'block';
 
-      var color = infoFonte(name).color;
+      var color = (BANKS[name] || { color: inkSoft }).color;
       var rows = saldi.filter(function(s){ return s.banca === name; });
       var current = parseFloat(rows[rows.length - 1].importo);
       var prev = rows.length > 1 ? parseFloat(rows[rows.length - 2].importo) : null;
@@ -4370,7 +4210,7 @@
       list.forEach(function(tx){
         var importo = parseFloat(tx.importo);
         var isPos = importo >= 0;
-        var bankInfo = infoFonte(tx.banca);
+        var bankInfo = BANKS[tx.banca] || { color: inkSoft, short: tx.banca };
         var desc = tx.descrizione || tx.banca || '—';
         var descTrunc = desc.length > 60 ? desc.slice(0, 60) + '…' : desc;
         var mono = desc.replace(/[^A-Za-zÀ-ÿ]/g, '').slice(0, 2).toUpperCase() || '·';
@@ -4542,26 +4382,6 @@
     }
 
     renderRecurringSubscriptions(movimenti);
-
-    var calPrevBtn = document.getElementById('calPrevMonth');
-    var calNextBtn = document.getElementById('calNextMonth');
-    if (calPrevBtn && !calPrevBtn._wired){
-      calPrevBtn._wired = true;
-      calPrevBtn.addEventListener('click', function(){
-        calendarioMese--;
-        if (calendarioMese < 0){ calendarioMese = 11; calendarioAnno--; }
-        renderSubscriptionCalendar(window._allMovimenti || movimenti);
-      });
-    }
-    if (calNextBtn && !calNextBtn._wired){
-      calNextBtn._wired = true;
-      calNextBtn.addEventListener('click', function(){
-        calendarioMese++;
-        if (calendarioMese > 11){ calendarioMese = 0; calendarioAnno++; }
-        renderSubscriptionCalendar(window._allMovimenti || movimenti);
-      });
-    }
-    renderSubscriptionCalendar(movimenti);
 
     // Portafoglio investimenti: popola valore attuale e mini grafico per banca
     var investimenti = (data.investimenti || []).slice().sort(function(a,b){ return new Date(a.data_registrazione) - new Date(b.data_registrazione); });
@@ -4755,7 +4575,7 @@
               labels: saldiPerTorta.map(function(v){ return v.nome; }),
               datasets: [{
                 data: saldiPerTorta.map(function(v){ return v.valore; }),
-                backgroundColor: saldiPerTorta.map(function(v){ return infoFonte(v.nome).color; }),
+                backgroundColor: saldiPerTorta.map(function(v){ return (BANKS[v.nome] || { color: accentColor }).color; }),
                 borderColor: chartPointBg,
                 borderWidth: 2
               }]
@@ -4812,7 +4632,7 @@
               labels: patrimonioFonti.map(function(v){ return v.nome; }),
               datasets: [{
                 data: patrimonioFonti.map(function(v){ return v.valore; }),
-                backgroundColor: patrimonioFonti.map(function(v){ return infoFonte(v.nome).color; }),
+                backgroundColor: patrimonioFonti.map(function(v){ return (BANKS[v.nome] || { color: accentColor }).color; }),
                 borderColor: chartPointBg,
                 borderWidth: 2
               }]
@@ -4901,7 +4721,7 @@
             '<div class="analysis-chart-wrap"><canvas id="investWeeklyChart' + idx + '"></canvas></div></div>';
         }).join('');
         investmentBankNamesManuali.forEach(function(bankName, idx){
-          var color = infoFonte(bankName).color;
+          var color = (BANKS[bankName] || { color: accentColor }).color;
           renderBankInvestmentChart('investWeeklyChart' + idx, investWeeks, investByBankWeekly[bankName] || [], color);
         });
       }
@@ -4913,7 +4733,7 @@
         investmentsGrid.innerHTML = '<p class="bank-empty-state" style="grid-column:1/-1;">Nessun investimento registrato ancora — usa "+ Aggiungi un investimento" qui sotto per iniziare a monitorarlo.</p>';
       } else {
       investmentsGrid.innerHTML = investmentBankNamesManuali.map(function(bankName, idx){
-        var color = infoFonte(bankName).color;
+        var color = (BANKS[bankName] || { color: inkSoft }).color;
         return '<article class="investment-card" data-bank-name="' + bankName.replace(/"/g, '&quot;') + '">' +
           '<div class="investment-card-top">' +
             '<p class="account-name">' + bankName + '</p>' +
@@ -4939,7 +4759,7 @@
 
       document.querySelectorAll('#investmentsGrid .investment-card').forEach(function(card){
         var bankName = card.getAttribute('data-bank-name');
-        var color = infoFonte(bankName).color;
+        var color = (BANKS[bankName] || { color: inkSoft }).color;
         var rows = investimenti.filter(function(r){ return r.banca === bankName; });
         var status = card.querySelector('.investment-status');
         var input = card.querySelector('.investment-input');
@@ -5024,7 +4844,7 @@
           var rows = investimenti.filter(function(iv){ return iv.banca === nomeExchange; });
           var ultimo = rows.length ? rows[rows.length - 1] : null;
           if (ultimo) totaleCrypto += parseFloat(ultimo.importo);
-          var color = infoFonte(nomeExchange).color;
+          var color = (BANKS[nomeExchange] || { color: inkSoft }).color;
           var valoreTesto = ultimo ? fmtEURfull(parseFloat(ultimo.importo)) : 'In attesa del primo aggiornamento…';
           var dataTesto = ultimo ? 'Aggiornato il ' + new Date(ultimo.data_registrazione).toLocaleDateString('it-IT') : '';
           return '<article class="investment-card" data-exchange-name="' + nomeExchange.replace(/"/g, '&quot;') + '">' +
@@ -5066,7 +4886,7 @@
           var rows = investimenti.filter(function(iv){ return iv.banca === nomeExchange; });
           var sparkData = rows.slice(-8).map(function(r){ return parseFloat(r.importo); });
           var canvas = document.getElementById('cryptoSpark' + idx);
-          var color = infoFonte(nomeExchange).color;
+          var color = (BANKS[nomeExchange] || { color: inkSoft }).color;
           if (sparkData.length > 1 && canvas){
             freshChart(canvas, {
               type: 'line',
@@ -5191,7 +5011,7 @@
           labels: bancheOrdinate.map(function(e){ return e[0]; }),
           datasets: [{
             data: bancheOrdinate.map(function(e){ return e[1]; }),
-            backgroundColor: bancheOrdinate.map(function(e){ return infoFonte(e[0]).color; }),
+            backgroundColor: bancheOrdinate.map(function(e){ return (BANKS[e[0]] || { color: accentColor }).color; }),
             borderRadius: 4,
             barThickness: 14
           }]
